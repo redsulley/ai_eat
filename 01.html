@@ -105,7 +105,7 @@
             border-radius: 15px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.05);
             min-height: 200px;
-            display: none; /* 預設隱藏，有內容才顯示 */
+            display: none;
         }
 
         .result-title {
@@ -117,7 +117,7 @@
         }
 
         .result-content {
-            white-space: pre-line; /* 保留換行 */
+            white-space: pre-line;
             color: #444;
             font-size: 1.1rem;
         }
@@ -189,15 +189,13 @@
                 <div class="result-title" id="displayQuery">關於您的美食探索</div>
                 <div class="result-content" id="resultText"></div>
             </div>
+            <p style="text-align: center;">版本1.0</p>
         </main>
     </div>
 
     <script>
         $(document).ready(function() {
-            // 注意：正式環境請務必將 API Key 移至後端 PHP
-            const apiKey = "AIzaSyAvF1XF2oSiAcdMSW0cKUnjDpYjGfpGNPI"; 
-            const modelName = "gemini-2.5-flash-preview-09-2025";
-            const systemPrompt = "你是一位專業的美食評論家與文化學者。請針對使用者輸入的食物或美食問題，提供豐富、優雅且引人入勝的簡介。內容應包含：食物起源、主要特色、口感描述或推薦吃法。請使用繁體中文。不要使用聊天室口吻（例如：你好、我能幫你什麼），直接進入主題。";
+            const proxyUrl = "https://redsulley-ai-eat.hf.space/api.php"; 
 
             $("#sendBtn").click(function() {
                 const query = $("#userInput").val().trim();
@@ -206,7 +204,6 @@
                 performQuery(query);
             });
 
-            // 支援 Enter 鍵
             $("#userInput").keypress(function(e) {
                 if (e.which == 13) {
                     $("#sendBtn").click();
@@ -214,21 +211,14 @@
             });
 
             async function performQuery(query) {
-                // UI 狀態切換
                 $("#sendBtn").prop("disabled", true);
                 $("#errorBox").hide();
                 $("#resultSection").fadeOut(200);
                 $("#loader").fadeIn(200);
 
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-
+                // 只向 PHP 發送使用者問題，其餘由 PHP 處理
                 const payload = {
-                    contents: [{
-                        parts: [{ text: query }]
-                    }],
-                    systemInstruction: {
-                        parts: [{ text: systemPrompt }]
-                    }
+                    query: query
                 };
 
                 let retryCount = 0;
@@ -236,21 +226,20 @@
 
                 async function fetchWithRetry() {
                     try {
-                        const response = await fetch(apiUrl, {
+                        const response = await fetch(proxyUrl, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify(payload)
                         });
 
+                        const data = await response.json();
+
                         if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
+                            throw new Error(data.error || `HTTP error! status: ${response.status}`);
                         }
 
-                        const data = await response.json();
-                        const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-                        if (aiResponse) {
-                            displayResult(query, aiResponse);
+                        if (data.text) {
+                            displayResult(query, data.text);
                         } else {
                             throw new Error("未能獲取有效的 AI 回應");
                         }
@@ -277,7 +266,6 @@
                 $("#resultText").text(content);
                 $("#resultSection").fadeIn(500);
                 
-                // 自動捲動到結果區
                 $('html, body').animate({
                     scrollTop: $("#resultSection").offset().top - 20
                 }, 800);
